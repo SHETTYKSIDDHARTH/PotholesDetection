@@ -218,7 +218,7 @@ async function doRouteAndCount(){
 </body>
 </html>
 """
-# ---------- end HTML ----------
+# ---------- end HTML now ----------
 
 # ----------- ROUTES -----------
 @app.route('/')
