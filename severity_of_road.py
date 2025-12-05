@@ -167,7 +167,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).a
 // Function to get color based on severity
 function getSeverityColor(severity) {
   const sev = (severity || 'low').toLowerCase();
-  if (sev === 'high') return 'yellow';
+  if (sev === 'high') return 'brown';
   if (sev === 'medium') return 'orange';
   return 'green'; // low or default
 }
