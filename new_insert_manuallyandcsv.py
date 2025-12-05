@@ -1,5 +1,4 @@
 # insert_seed_rows.py
-# Simple: read CSV (col1=lat, col2=lon, col3=tag) OR use manual rows (old style).
 from pymongo import MongoClient
 import pprint
 import os
@@ -7,42 +6,75 @@ import csv
 
 # ---- CONFIG ----
 MONGO_URI = "mongodb+srv://potholes:abcd123@potholes.bjxaqim.mongodb.net/"
-CSV_PATH = "potholes.csv"
-USE_CSV = True   # set to False if you want to force the hard-coded rows (manual mode)
+CSV_PATH = "locations.csv"
+USE_CSV = True
 # ----------------
 
-# manual (old) rows - you can edit/add here
 manual_rows = [
-    (13.33086451, 77.12842632, "pothole"),
-    (13.33092808, 77.12710311, "pothole"),
-    (13.3298194, 77.12678922, "pothole"),
-    (13.32779168, 77.1259858, "pothole"),
-    (13.32862231, 77.12646785, "pothole"),
-    (13.33154881, 77.1264198, "pothole"),
-    (13.3315369, 77.1264198, "pothole"),
-    (13.32843619, 77.12460939, "pothole"),
-    (13.32868615, 77.1228051, "pothole"),
-    (13.32880292, 77.12148892, "pothole"),
+    (13.33086451, 77.12842632, "Low"),
+    (13.33092808, 77.12710311, "Low"),
+    (13.3298194, 77.12678922, "Low"),
 ]
 
 def read_csv_rows(path):
     rows = []
     if not os.path.exists(path):
         return rows
+
     with open(path, newline='') as f:
         reader = csv.reader(f)
+        try:
+            first = next(reader)
+        except StopIteration:
+            return rows
+
+        lower_first = [c.strip().lower() for c in first]
+
+        lat_idx = lon_idx = tag_idx = None
+
+        if any("lat" in c for c in lower_first) and any("lon" in c or "long" in c for c in lower_first):
+            for i, c in enumerate(lower_first):
+                if c in ("lat", "latitude"):
+                    lat_idx = i
+                if c in ("lon", "longitude", "lng", "long"):
+                    lon_idx = i
+                if c in ("severity", "tag", "type", "label"):
+                    tag_idx = i
+
+            if tag_idx is None:
+                for i, c in enumerate(lower_first):
+                    if "severity" in c:
+                        tag_idx = i
+                        break
+        else:
+            lat_idx, lon_idx, tag_idx = 0, 1, 2
+            reader = (r for r in [first] + list(reader))
+
+        seen = set()
+
         for r in reader:
             if not r:
                 continue
-            # take first three columns; allow header rows (skip if lat not numeric)
             try:
-                lat = float(r[0])
-                lon = float(r[1])
-                tag = r[2] if len(r) > 2 else "pothole"
-                rows.append((lat, lon, tag))
+                lat = float(r[lat_idx])
+                lon = float(r[lon_idx])
             except Exception:
-                # skip header or malformed line
                 continue
+
+            if lat == 0.0 and lon == 0.0:
+                continue
+
+            tag = "Low"
+            if tag_idx is not None and tag_idx < len(r):
+                tag = r[tag_idx].strip() or "Low"
+
+            key = (lat, lon)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            rows.append((lat, lon, tag))
+
     return rows
 
 def main():
@@ -50,8 +82,6 @@ def main():
     db = client.get_database("pothole_db")
     col = db["potholes"]
 
-    # choose source
-    rows = []
     if USE_CSV:
         rows = read_csv_rows(CSV_PATH)
         if not rows:
@@ -63,9 +93,16 @@ def main():
     inserted = 0
     skipped = 0
 
-    for lat, lon, tag in rows:
+    for lat, lon, severity in rows:
         query = {"lat": float(lat), "lon": float(lon)}
-        update = {"$setOnInsert": {"lat": float(lat), "lon": float(lon), "tag": tag}}
+        update = {
+            "$setOnInsert": {
+                "lat": float(lat),
+                "lon": float(lon),
+                "tag": severity,
+                "severity": severity
+            }
+        }
         result = col.update_one(query, update, upsert=True)
         if result.upserted_id is not None:
             inserted += 1
@@ -74,7 +111,6 @@ def main():
 
     print(f"Inserted: {inserted}, Skipped (already existed): {skipped}")
 
-    # show sample of inserted documents (limit 20)
     print("\nSample documents in collection:")
     for doc in col.find({}, {"_id": 0}).limit(20):
         pprint.pprint(doc)
