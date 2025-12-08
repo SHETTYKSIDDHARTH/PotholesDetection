@@ -11,9 +11,11 @@ USE_CSV = True
 # ----------------
 
 manual_rows = [
-    (13.33086451, 77.12842632, "Low"),
-    (13.33092808, 77.12710311, "Low"),
-    (13.3298194, 77.12678922, "Low"),
+    (13.33086451, 77.12842632, "pothole"),
+    (13.33092808, 77.12710311, "pothole"),
+    (13.3298194, 77.12678922, "pothole"),
+    (13.337215, 77.126340, "pothole"),
+    (13.337183, 77.126354, "pothole"),
 ]
 
 def read_csv_rows(path):
@@ -64,9 +66,8 @@ def read_csv_rows(path):
             if lat == 0.0 and lon == 0.0:
                 continue
 
-            tag = "Low"
-            if tag_idx is not None and tag_idx < len(r):
-                tag = r[tag_idx].strip() or "Low"
+            # Always set tag as "pothole"
+            tag = "pothole"
 
             key = (lat, lon)
             if key in seen:
@@ -93,14 +94,14 @@ def main():
     inserted = 0
     skipped = 0
 
-    for lat, lon, severity in rows:
+    for lat, lon, tag in rows:
         query = {"lat": float(lat), "lon": float(lon)}
         update = {
             "$setOnInsert": {
                 "lat": float(lat),
                 "lon": float(lon),
-                "tag": severity,
-                "severity": severity
+                "tag": "pothole",
+                "severity": "pothole"
             }
         }
         result = col.update_one(query, update, upsert=True)
